@@ -13,21 +13,25 @@ const requireAuth = async (req, res, next) => {
     const token = authorization.split(' ')[1];
     
     try {
-        // FIX 1 & 2: Use process.env.SECRET to match your controller, and extract _id
         const { _id } = jwt.verify(token, process.env.SECRET);
-        
-        // FIX 3: Search the database using the _id we just extracted
-        req.user = await User.findOne({ _id }).select('_id HospitalID name email role');
-        
-        // Safety check just in case the user was deleted from the DB
-        if (!req.user) {
+
+        const userDoc = await User.findById(_id);
+        if (!userDoc) {
             throw new Error('User not found');
         }
-        
+
+        const decrypted = User.toPublic(userDoc);
+        req.user = {
+            _id: userDoc._id,
+            HospitalID: decrypted.HospitalID,
+            name: decrypted.name,
+            email: decrypted.email,
+            role: decrypted.role,
+        };
+
         next();
     } catch (error) {
-        // To help debug future issues, you can log the actual error in your console
-        console.log("Auth Error:", error.message); 
+        console.log('Auth Error:', error.message);
         return res.status(401).json({
             error: 'Request is not authorized'
         });

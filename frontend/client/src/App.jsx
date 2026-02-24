@@ -1,35 +1,48 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
+import AdminOnlyRoute from './components/AdminOnlyRoute';
+import AdminOrDoctorRoute from './components/AdminOrDoctorRoute';
+import Layout from './components/Layout';
+import Login from './pages/Login';
+import Signup from './pages/Signup';
+import PatientList from './pages/PatientList';
+import PatientDetail from './pages/PatientDetail';
+import Logs from './pages/Logs';
+import Doctors from './pages/Doctors';
 
-function App() {
-  const [count, setCount] = useState(0)
+function AppRoutes() {
+  const { isAuthenticated } = useAuth();
+  const location = useLocation();
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    <Routes location={location}>
+      <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : <Login />} />
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<PatientList />} />
+        <Route path="doctors" element={<AdminOnlyRoute><Doctors /></AdminOnlyRoute>} />
+        <Route path="signup" element={<AdminOrDoctorRoute><Signup /></AdminOrDoctorRoute>} />
+        <Route path="logs" element={<AdminOnlyRoute><Logs /></AdminOnlyRoute>} />
+        <Route path="patients/:id" element={<PatientDetail />} />
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
 }
 
-export default App
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </BrowserRouter>
+  );
+}

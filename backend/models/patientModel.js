@@ -3,20 +3,20 @@ const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
 const patientSchema = new Schema({
-    // Link to the User auth schema
     HospitalID: {
         type: String,
-        required: true,
-        unique: true
+        index: true
     },
+    HospitalIDEncrypted: { type: String },
+    HospitalIDHash: { type: String, unique: true, sparse: true, index: true },
     medicalHistory: {
-        type: Array,
-        default: []
+        type: Array
     },
-    bloodType: {
-        type: String
-    }
-    // Add other patient-specific medical fields here
+    medicalHistoryEncrypted: { type: String },
+    bloodType: { type: String },
+    bloodTypeEncrypted: { type: String },
+    aiSummary: { type: String },
+    aiSummaryEncrypted: { type: String }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Patient', patientSchema);
