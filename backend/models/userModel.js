@@ -109,6 +109,7 @@ userSchema.statics.signup = async function signup(HospitalID, password, name, em
     const normalizedName = requireNonEmpty(name, 'Name');
     const normalizedEmail = requireNonEmpty(email, 'Email');
     const normalizedRole = normalizeRole(role);
+    const patientRoleHash = hashValue('patient');
 
     if (typeof password !== 'string' || password.length === 0) {
         throw new Error('Password is required');
@@ -124,7 +125,31 @@ userSchema.statics.signup = async function signup(HospitalID, password, name, em
     }).lean();
 
     if (existing) {
-        throw new Error('Hospital ID already in use');
+        const existingPublic = this.toPublic(existing);
+        const isExistingPatient = Boolean(
+            existingPublic?.role === 'patient'
+            || existing.roleHash === patientRoleHash
+            || existing.role === patientRoleHash
+            || existing.role === 'patient'
+        );
+
+        if (isExistingPatient) {
+            const patientRecord = await Patient.findOne({
+                $or: [
+                    { HospitalIDHash: hospitalHash },
+                    { HospitalID: hospitalHash },
+                    { HospitalID: normalizedHospitalID },
+                ],
+            }).lean();
+
+            if (!patientRecord) {
+                await this.deleteOne({ _id: existing._id });
+            } else {
+                throw new Error('Hospital ID already in use');
+            }
+        } else {
+            throw new Error('Hospital ID already in use');
+        }
     }
 
     const salt = await bcrypt.genSalt(10);

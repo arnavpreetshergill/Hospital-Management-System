@@ -50,6 +50,106 @@ function decryptAes(encrypted) {
     }
 }
 
+function hashValue(value) {
+    if (value === undefined || value === null) return value;
+    let normalized;
+    if (typeof value === 'string') {
+        normalized = value;
+    } else {
+        try {
+            normalized = JSON.stringify(value);
+        } catch {
+            normalized = String(value);
+        }
+    }
+    return crypto.createHash('sha256').update(normalized).digest('hex');
+}
+
+function encryptUserData(user) {
+    const obj = user?.toObject ? user.toObject() : { ...(user || {}) };
+
+    if (obj.HospitalID !== undefined && obj.HospitalID !== null && obj.HospitalID !== '') {
+        const hospitalId = String(obj.HospitalID);
+        obj.HospitalIDHash = hashValue(hospitalId);
+        obj.HospitalIDEncrypted = encryptAes(hospitalId);
+        obj.HospitalID = obj.HospitalIDHash;
+    }
+
+    if (obj.name !== undefined && obj.name !== null && obj.name !== '') {
+        const name = String(obj.name);
+        obj.nameEncrypted = encryptAes(name);
+        obj.name = hashValue(name);
+    }
+
+    if (obj.email !== undefined && obj.email !== null && obj.email !== '') {
+        const email = String(obj.email);
+        obj.emailEncrypted = encryptAes(email);
+        obj.email = hashValue(email);
+    }
+
+    if (obj.phoneNumber !== undefined && obj.phoneNumber !== null && obj.phoneNumber !== '') {
+        const phone = String(obj.phoneNumber);
+        obj.phoneNumberEncrypted = encryptAes(phone);
+        obj.phoneNumber = hashValue(phone);
+    }
+
+    if (obj.role !== undefined && obj.role !== null && obj.role !== '') {
+        const role = String(obj.role).toLowerCase();
+        obj.roleHash = hashValue(role);
+        obj.roleEncrypted = encryptAes(role);
+        obj.role = obj.roleHash;
+    }
+
+    return obj;
+}
+
+function decryptUserData(doc) {
+    if (!doc) return doc;
+    const obj = doc.toObject ? doc.toObject() : { ...doc };
+
+    if (obj.HospitalIDEncrypted) {
+        try {
+            obj.HospitalID = decryptAes(obj.HospitalIDEncrypted);
+        } catch {
+            // Keep existing value for legacy compatibility.
+        }
+    }
+
+    if (obj.nameEncrypted) {
+        try {
+            obj.name = decryptAes(obj.nameEncrypted);
+        } catch {
+            // Keep existing value for legacy compatibility.
+        }
+    }
+
+    if (obj.emailEncrypted) {
+        try {
+            obj.email = decryptAes(obj.emailEncrypted);
+        } catch {
+            // Keep existing value for legacy compatibility.
+        }
+    }
+
+    if (obj.phoneNumberEncrypted) {
+        try {
+            obj.phoneNumber = decryptAes(obj.phoneNumberEncrypted);
+        } catch {
+            // Keep existing value for legacy compatibility.
+        }
+    }
+
+    if (obj.roleEncrypted) {
+        try {
+            obj.role = decryptAes(obj.roleEncrypted);
+        } catch {
+            // Keep existing value for legacy compatibility.
+        }
+    }
+
+    return obj;
+}
+
 /**
  * RSA for signing audit log entries (integrity verification).
  * Uses RSA_PRIVATE_KEY (PEM) from env.
@@ -73,6 +173,12 @@ function signRsa(data) {
 
 function encryptPatientData(patient) {
     const obj = patient.toObject ? patient.toObject() : { ...patient };
+    if (obj.HospitalID !== undefined && obj.HospitalID !== null && obj.HospitalID !== '') {
+        const hospitalId = String(obj.HospitalID);
+        obj.HospitalIDHash = hashValue(hospitalId);
+        obj.HospitalIDEncrypted = encryptAes(hospitalId);
+        obj.HospitalID = obj.HospitalIDHash;
+    }
     if (obj.medicalHistory && Array.isArray(obj.medicalHistory)) {
         try {
             obj.medicalHistoryEncrypted = encryptAes(JSON.stringify(obj.medicalHistory));
@@ -89,12 +195,27 @@ function encryptPatientData(patient) {
             console.warn('Encryption of bloodType failed:', e.message);
         }
     }
+    if (obj.aiSummary && typeof obj.aiSummary === 'string') {
+        try {
+            obj.aiSummaryEncrypted = encryptAes(obj.aiSummary);
+            obj.aiSummary = hashValue(obj.aiSummary);
+        } catch (e) {
+            console.warn('Encryption of aiSummary failed:', e.message);
+        }
+    }
     return obj;
 }
 
 function decryptPatientData(doc) {
     if (!doc) return doc;
     const obj = doc.toObject ? doc.toObject() : { ...doc };
+    if (obj.HospitalIDEncrypted) {
+        try {
+            obj.HospitalID = decryptAes(obj.HospitalIDEncrypted);
+        } catch {
+            // Keep existing value for legacy compatibility.
+        }
+    }
     if (obj.medicalHistoryEncrypted) {
         try {
             const dec = decryptAes(obj.medicalHistoryEncrypted);
@@ -112,12 +233,23 @@ function decryptPatientData(doc) {
             obj.bloodType = null;
         }
     }
+    if (obj.aiSummaryEncrypted) {
+        try {
+            obj.aiSummary = decryptAes(obj.aiSummaryEncrypted);
+            delete obj.aiSummaryEncrypted;
+        } catch {
+            // Keep existing value for legacy compatibility.
+        }
+    }
     return obj;
 }
 
 module.exports = {
     encryptAes,
     decryptAes,
+    hashValue,
+    encryptUserData,
+    decryptUserData,
     signRsa,
     encryptPatientData,
     decryptPatientData,

@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const Patient = require('../models/patientModel');
+const User = require('../models/userModel');
 const { encryptPatientData, decryptPatientData, hashValue } = require('../utils/encryption');
 const { generatePatientSummary } = require('../services/geminiService');
 const { logActivity } = require('../utils/activityLogger');
@@ -72,6 +73,34 @@ const deletePatient = async (req, res) => {
     }
 
     const decrypted = decryptPatientData(patient);
+    const patientRoleHash = hashValue('patient');
+    const hospitalIdCandidates = [
+        patient.HospitalIDHash,
+        patient.HospitalID,
+        decrypted.HospitalID,
+    ].filter(Boolean);
+
+    if (hospitalIdCandidates.length > 0) {
+        const userLookup = {
+            $and: [
+                {
+                    $or: [
+                        { roleHash: patientRoleHash },
+                        { role: patientRoleHash },
+                        { role: 'patient' },
+                    ],
+                },
+                {
+                    $or: hospitalIdCandidates.flatMap((value) => ([
+                        { HospitalIDHash: value },
+                        { HospitalID: value },
+                    ])),
+                },
+            ],
+        };
+        await User.findOneAndDelete(userLookup);
+    }
+
     await logActivity('patient_delete', req.user, { patientId: id, HospitalID: decrypted.HospitalID }, req);
     res.status(200).json(decrypted);
 };
